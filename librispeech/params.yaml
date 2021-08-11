@@ -1,5 +1,7 @@
 
 
+lang_dir: ./data/lang_bpe
+lm_dir: ./data/lm
 out_dir: ./exp
 # device: 'cpu'
 device: 'cuda:0'
@@ -46,14 +48,19 @@ bos_index: 1
 eos_index: 2
 unk_index: 0
 
-# speechbrain decoding parameters
-min_decode_ratio: 0.0
-max_decode_ratio: 1.0
-valid_search_interval: 10
-valid_beam_size: 10
-test_beam_size: 66
-lm_weight: 0.60
-ctc_weight_decode: 0.40
+# decoding parameters
+# method: "1best"
+# method: "nbest"
+# method: "nbest-rescoring"
+method: "whole-lattice-rescoring"
+# method: "attention-decoder"
+
+search_beam: 20
+output_beam: 8
+min_active_states: 30
+max_active_states: 10000
+use_double_scores: True
+num_paths: 100
 
 ############################## Models ################################
 

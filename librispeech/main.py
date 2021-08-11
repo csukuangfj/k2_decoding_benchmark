@@ -164,6 +164,27 @@ def run_ctc_decoding(hparams, batch):
     return hyps
 
 
+def test(hparams, batch):
+    batch = batch.to(hparams.device)
+    wavs, wav_lens = batch.sig
+    tokens_bos, _ = batch.tokens_bos
+
+    feats = hparams.compute_features(wavs)
+    feats = hparams.normalize(feats, wav_lens)
+
+    src = hparams.CNN(feats)
+    enc_out, pred = hparams.Transformer(
+        src, tokens_bos, wav_lens, pad_idx=hparams.pad_index
+    )
+
+    # output layer for ctc log-probabilities
+    logits = hparams.ctc_lin(enc_out)
+    p_ctc = hparams.log_softmax(logits)
+    hyps, _ = ctc_decoding(p_ctc.detach(), hparams.ctc_topo)
+    return hyps
+
+
+@torch.no_grad()
 def main():
     hparams = get_params()
 
@@ -178,6 +199,10 @@ def main():
     for key, value in hparams.items():
         if isinstance(value, torch.nn.Module):
             value.to(hparams.device)
+            value.eval()
+
+    #  hparams.modules = torch.nn.ModuleDict(hparams.modules).to(hparams.device)
+    #  hparams.modules.eval()
 
     hparams.ctc_topo = k2.ctc_topo(
         hparams.tokenizer.vocab_size() - 1, modified=True, device=hparams.device
@@ -198,6 +223,7 @@ def main():
             if batch_idx % 50 == 0:
                 logging.info(f"Processing {batch_idx}/{num_batches}")
             hyps = run_ctc_decoding(hparams, batch)
+            #  hyps = test(hparams, batch)
 
             predicted_words = [
                 hparams.tokenizer.decode(utt_seq).split(" ") for utt_seq in hyps

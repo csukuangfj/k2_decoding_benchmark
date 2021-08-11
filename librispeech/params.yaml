@@ -121,4 +121,3 @@ pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
         model: !ref <pretrained_lm_tokenizer_path>/asr.ckpt
 
 error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-acc_computer: !name:speechbrain.utils.Accuracy.AccuracyStats

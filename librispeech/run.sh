@@ -19,8 +19,11 @@ log() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
 
-log "Downloading LM"
-./local/download_lm.py --out-dir=$dl_dir/lm
+if [ ! -f $dl_dir/lm/.done ]; then
+  log "Downloading LM"
+  ./local/download_lm.py --out-dir=$dl_dir/lm
+  touch $dl_dir/lm/.done
+fi
 
 if [ ! -f $lang_dir/bpe.model ]; then
   log "Downloading checkpoints"

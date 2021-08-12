@@ -6,3 +6,4 @@ max-line-length = 80
 exclude =
   .git,
   **/data/**
+  ./librispeech/local/prepare.py

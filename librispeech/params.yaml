@@ -3,19 +3,19 @@
 lang_dir: ./data/lang_bpe
 lm_dir: ./data/lm
 out_dir: ./exp
-# device: 'cpu'
-device: 'cuda:0'
+device: 'cpu'
+# device: 'cuda:0'
 
 ####################### dataset ###########################
 dataset_dir: /ceph-fj/data/librispeech/LibriSpeech
 test_splits: ["test-clean", "test-other"]
-# select_n_sentences: [10, 10]
+select_n_sentences: [10, 10]
 
 test_csv:
     - !ref <out_dir>/test-clean.csv
     - !ref <out_dir>/test-other.csv
 
-batch_size: 10
+batch_size: 2
 
 ####################### Features ###########################
 

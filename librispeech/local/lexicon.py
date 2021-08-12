@@ -1,18 +1,13 @@
-import logging
 import re
-import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import k2
-import torch
 
 
 class Lexicon(object):
     def __init__(
-        self,
-        lang_dir: Path,
-        disambig_pattern: str = re.compile(r"^#\d+$"),
+        self, lang_dir: Path, disambig_pattern: str = re.compile(r"^#\d+$"),
     ):
         """
         Args:

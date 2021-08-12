@@ -4,17 +4,15 @@
 
 import logging
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
 
 import k2
 import speechbrain as sb
 import torch
 from hyperpyyaml import load_hyperpyyaml
-from speechbrain.dataio.dataio import length_to_mask
-from speechbrain.decoders.k2 import ctc_decoding
-
+from local.common import get_datasets, prepare_data_csv
 from local.decode import (
     get_lattice,
     nbest_decoding,
@@ -24,14 +22,14 @@ from local.decode import (
     rescore_with_whole_lattice,
 )
 from local.lexicon import Lexicon
-from prepare import prepare_librispeech
-
 from local.utils import (
+    setup_logger,
     AttributeDict,
     get_texts,
     store_transcripts,
     write_error_stats,
 )
+from speechbrain.dataio.dataio import length_to_mask
 
 
 def get_params() -> AttributeDict:
@@ -51,77 +49,6 @@ def get_params() -> AttributeDict:
     params.lm_dir = Path(params.lm_dir)
 
     return params
-
-
-def prepare_data_csv(params: AttributeDict) -> None:
-    """Prepare the librispeech test datasets.
-
-    The generated files are saved in `params.out_dir`.
-    """
-    if (params.out_dir / ".done").is_file():
-        logging.info("Skipping data preparation")
-        return
-    prepare_librispeech(
-        data_folder=params.dataset_dir,
-        save_folder=params.out_dir,
-        te_splits=params.test_splits,
-        select_n_sentences=params.select_n_sentences,
-        skip_prep=False,
-    )
-    (params.out_dir / ".done").touch()
-
-
-def get_datasets(params) -> Dict[str, sb.dataio.dataset.DynamicItemDataset]:
-    """
-    Return a dict with keys being test-clean and test-other
-    and with values being sb.dataio.dataset.DynamicItemDataset.
-    """
-    test_datasets = {}
-    for csv_file in params.test_csv:
-        name = Path(csv_file).stem
-        test_datasets[name] = sb.dataio.dataset.DynamicItemDataset.from_csv(
-            csv_path=csv_file
-        )
-        test_datasets[name] = test_datasets[name].filtered_sorted(
-            sort_key="duration"
-        )
-
-    datasets = list(test_datasets.values())
-
-    tokenizer = params.tokenizer
-
-    @sb.utils.data_pipeline.takes("wav")
-    @sb.utils.data_pipeline.provides("sig")
-    def audio_pipeline(wav):
-        sig = sb.dataio.dataio.read_audio(wav)
-        return sig
-
-    sb.dataio.dataset.add_dynamic_item(datasets, audio_pipeline)
-
-    # 3. Define text pipeline:
-    @sb.utils.data_pipeline.takes("wrd")
-    @sb.utils.data_pipeline.provides(
-        "wrd", "tokens_list", "tokens_bos", "tokens_eos", "tokens"
-    )
-    def text_pipeline(wrd):
-        yield wrd
-        tokens_list = tokenizer.encode_as_ids(wrd)
-        yield tokens_list
-        tokens_bos = torch.LongTensor([params["bos_index"]] + (tokens_list))
-        yield tokens_bos
-        tokens_eos = torch.LongTensor(tokens_list + [params["eos_index"]])
-        yield tokens_eos
-        tokens = torch.LongTensor(tokens_list)
-        yield tokens
-
-    sb.dataio.dataset.add_dynamic_item(datasets, text_pipeline)
-
-    # 4. Set output:
-    sb.dataio.dataset.set_output_keys(
-        datasets,
-        ["id", "sig", "wrd", "tokens_bos", "tokens_eos", "tokens"],
-    )
-    return test_datasets
 
 
 def compute_features(params, batch):
@@ -148,6 +75,7 @@ def run_transformer_encoder(params: AttributeDict, batch):
     # Note: We don't use model.encode() here
     # since it ignores src_key_padding_mask
     # during the test time
+    return model.encode(src, wav_lens), wav_lens
 
     abs_len = torch.round(wav_lens * src.shape[1])
     src_key_padding_mask = (1 - length_to_mask(abs_len)).bool()
@@ -165,7 +93,7 @@ def run_transformer_encoder(params: AttributeDict, batch):
         src_key_padding_mask=src_key_padding_mask,
         pos_embs=pos_embs_source,
     )
-    return encoder_out, src_key_padding_mask
+    return encoder_out, src_key_padding_mask, wav_lens
 
 
 def decode_one_batch(
@@ -220,7 +148,10 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    memory, memory_key_padding_mask = run_transformer_encoder(params, batch)
+    memory, wav_lens = run_transformer_encoder(params, batch)
+
+    abs_len = torch.round(wav_lens * memory.shape[1])
+    src_key_padding_mask = (1 - length_to_mask(abs_len)).bool()
 
     logits = params.ctc_lin(memory)
     nnet_output = params.log_softmax(logits)
@@ -228,7 +159,10 @@ def decode_one_batch(
 
     supervision_segments = torch.zeros(nnet_output.shape[0], 3)
     supervision_segments[:, 0] = torch.arange(nnet_output.shape[0])
-    supervision_segments[:, 2] = nnet_output.shape[1]
+
+    abs_len = torch.round(wav_lens * nnet_output.shape[1])
+    supervision_segments[:, 2] = abs_len
+
     supervision_segments = supervision_segments.to(torch.int32)
 
     lattice = get_lattice(
@@ -292,7 +226,7 @@ def decode_one_batch(
             num_paths=params.num_paths,
             model=None,  # TODO: fix me
             memory=memory,
-            memory_key_padding_mask=memory_key_padding_mask,
+            memory_key_padding_mask=src_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
         )
@@ -390,7 +324,6 @@ def decode_dataset(
     """
     results = []
 
-    num = 0
     tot_num = len(dl)
 
     results = defaultdict(list)
@@ -423,32 +356,6 @@ def decode_dataset(
                 f"({float(batch_idx)/tot_num*100:.6f}%)"
             )
     return results
-
-
-def run_ctc_decoding(params, batch):
-    encoder_out, _ = run_transformer_encoder(params, batch)
-
-    logits = params.ctc_lin(encoder_out)
-    p_ctc = params.log_softmax(logits)
-    hyps, _ = ctc_decoding(p_ctc.detach(), params.ctc_topo)
-    predicted_words = [
-        params.tokenizer.decode(utt_seq).split(" ") for utt_seq in hyps
-    ]
-    return predicted_words
-
-
-def run_hlg_decoding(params, batch):
-    encoder_out, _ = run_transformer_encoder(params, batch)
-
-    logits = params.ctc_lin(encoder_out)
-    p_ctc = params.log_softmax(logits)
-    hyps, _ = ctc_decoding(p_ctc.detach(), params.HLG)
-
-    predicted_words = [
-        [params.lexicon.word_table[i] for i in ids] for ids in hyps
-    ]
-
-    return predicted_words
 
 
 @torch.no_grad()
@@ -545,9 +452,8 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    Path("exp").mkdir(exist_ok=True)
+    log_file = "exp/log-decode"
+    setup_logger(log_file)
 
-    logging.basicConfig(format=formatter, level=logging.INFO)
     main()

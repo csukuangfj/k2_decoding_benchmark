@@ -35,6 +35,10 @@ def get_params() -> AttributeDict:
         params.dataset_dir = os.environ["dataset_dir"]
         logging.info(f"dataset_dir: {params.dataset_dir}")
 
+    if "device" in os.environ:
+        params.device = os.environ["device"]
+        logging.info(f"device: {params.device}")
+
     params.device = torch.device(params.device)
     params.out_dir = Path(params.out_dir)
 

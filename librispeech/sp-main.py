@@ -32,13 +32,11 @@ def get_params() -> AttributeDict:
     elif len(params.select_n_sentences) == 0:
         params.select_n_sentences = None
 
-    if "dataset_dir" in os.environ:
-        params.dataset_dir = os.environ["dataset_dir"]
-        logging.info(f"dataset_dir: {params.dataset_dir}")
-
-    if "device" in os.environ:
-        params.device = os.environ["device"]
-        logging.info(f"device: {params.device}")
+    # for colab notebook
+    for key in params:
+        if key in os.environ:
+            params[key] = os.environ[key]
+            logging.info(f"{key}: {params[key]}")
 
     params.device = torch.device(params.device)
     params.out_dir = Path(params.out_dir)

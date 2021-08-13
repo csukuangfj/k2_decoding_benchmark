@@ -54,12 +54,6 @@ def setup_logger(
         logging.getLogger("").addHandler(console)
 
 
-class AttributeDict(dict):
-    __slots__ = ()
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-
-
 def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
     """Extract the texts (as word IDs) from the best-path FSAs.
     Args:

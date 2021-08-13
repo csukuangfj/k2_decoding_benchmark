@@ -9,13 +9,8 @@ from pathlib import Path
 import speechbrain as sb
 import torch
 from hyperpyyaml import load_hyperpyyaml
-from local.common import get_datasets, prepare_data_csv
-from local.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    write_error_stats,
-)
+from local.common import AttributeDict, get_datasets, prepare_data_csv
+from local.utils import setup_logger, store_transcripts, write_error_stats
 from speechbrain.pretrained import EncoderDecoderASR
 
 

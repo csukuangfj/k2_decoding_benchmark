@@ -2,6 +2,7 @@
 
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -29,6 +30,10 @@ def get_params() -> AttributeDict:
         params.select_n_sentences = None
     elif len(params.select_n_sentences) == 0:
         params.select_n_sentences = None
+
+    if "dataset_dir" in os.environ:
+        params.dataset_dir = os.environ["dataset_dir"]
+        logging.info(f"dataset_dir: {params.dataset_dir}")
 
     params.device = torch.device(params.device)
     params.out_dir = Path(params.out_dir)

@@ -35,7 +35,7 @@ def get_params() -> AttributeDict:
     # for colab notebook
     for key in params:
         if key in os.environ:
-            params[key] = os.environ[key]
+            params[key] = type(params[key])(os.environ[key])
             logging.info(f"{key}: {params[key]}")
 
     params.device = torch.device(params.device)

@@ -1,10 +1,7 @@
-from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import k2
 import k2.ragged as k2r
-
-Pathlike = Union[str, Path]
 
 
 def get_texts(best_paths: k2.Fsa) -> List[List[int]]:

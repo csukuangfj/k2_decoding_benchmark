@@ -48,9 +48,9 @@ def get_datasets(params) -> Dict[str, sb.dataio.dataset.DynamicItemDataset]:
         test_datasets[name] = sb.dataio.dataset.DynamicItemDataset.from_csv(
             csv_path=csv_file
         )
-        #  test_datasets[name] = test_datasets[name].filtered_sorted(
-        #      sort_key="duration"
-        #  )
+        test_datasets[name] = test_datasets[name].filtered_sorted(
+            sort_key="duration"
+        )
 
     datasets = list(test_datasets.values())
 
@@ -84,7 +84,8 @@ def get_datasets(params) -> Dict[str, sb.dataio.dataset.DynamicItemDataset]:
 
     # 4. Set output:
     sb.dataio.dataset.set_output_keys(
-        datasets, ["id", "sig", "wrd", "tokens_bos", "tokens_eos", "tokens"],
+        datasets,
+        ["id", "sig", "wrd", "tokens_bos", "tokens_eos", "tokens"],
     )
     return test_datasets
 

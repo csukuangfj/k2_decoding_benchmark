@@ -61,7 +61,9 @@ def main():
     datasets = get_datasets(params)
 
     for name, dataset in datasets.items():
-        logging.info(f"Decode {name} started")
+        logging.info(
+            f"Decode {name} started. batch size: {params.batch_size}, device: {params.device}"
+        )
         dataloader = sb.dataio.dataloader.make_dataloader(
             dataset, batch_size=params.batch_size
         )
